@@ -103,7 +103,7 @@ def main(args, hparams, test_hparams):
         misc.print_row([results['Train'][key] for key in results['Train'].keys()])
 
         for evaluator in evaluators:
-            for k, v in evaluator.calculate(validation_loader).items():
+            for k, v in evaluator.calculate(validation_loader, epoch).items():
                 results['Validation'].update({k: v})
 
         print('\nValidation')
@@ -111,7 +111,7 @@ def main(args, hparams, test_hparams):
         misc.print_row([results['Validation'][key] for key in results['Validation'].keys()])
 
         for evaluator in evaluators:
-            for k, v in evaluator.calculate(test_loader).items():
+            for k, v in evaluator.calculate(test_loader, epoch).items():
                 results['Test'].update({k: v})
 
         print('\nTest')

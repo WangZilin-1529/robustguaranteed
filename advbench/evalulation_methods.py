@@ -35,34 +35,49 @@ class Clean(Evaluator):
     
 
     @torch.no_grad()
-    def calculate(self, loader):
+    def calculate(self, loader, epoch):
         self.algorithm.eval()
 
-        correct, total, loss_sum, robustness_sum = 0, 0, 0, 0
-        proportion, MoE, confi_level = self.test_hparams['proportion'], self.test_hparams['MoE'], self.test_hparams['confi_level']
-        N = util.calculate_sample_size(proportion, MoE, confi_level)
+        correct, total, loss_sum = 0, 0, 0
+        robust_sum = 0
+        robust_sum1, robust_sum2, robust_sum3 = 0, 0, 0
+        proportion = self.test_hparams['proportion']
+        N = 100
         for imgs, labels in loader:
             pert_labels = []
             imgs, labels = imgs.to(self.device), labels.to(self.device)
             logits = self.algorithm.predict(imgs)
             loss_sum += F.cross_entropy(logits, labels, reduction='sum').item()
             preds = logits.argmax(dim=1, keepdim=True)
-            for i in range(N):
-                pert_imgs = self.algorithm.img_clamp(imgs + self.algorithm.sample_deltas(imgs))
-                pert_logits = self.algorithm.predict(pert_imgs)
-                preds_pert = pert_logits.argmax(dim=1, keepdim=True)
-                pert_labels.append(preds_pert)
-            pert_labels_tensor = torch.cat(pert_labels, dim=1)
-            robustness = self.check_robustness(proportion, labels, pert_labels_tensor)
-            robustness_sum += torch.count_nonzero(robustness).item()
+            if epoch > 20:
+                for i in range(N):
+                    pert_imgs = self.algorithm.img_clamp(imgs + self.algorithm.sample_deltas(imgs))
+                    pert_logits = self.algorithm.predict(pert_imgs)
+                    preds_pert = pert_logits.argmax(dim=1, keepdim=True)
+                    pert_labels.append(preds_pert)
+                pert_labels_tensor = torch.cat(pert_labels, dim=1)
+                # robustness = self.check_robustness(proportion, labels, pert_labels_tensor)
+                robustness1 = self.check_robustness(0.9, labels, pert_labels_tensor)
+                robustness2 = self.check_robustness(0.95, labels, pert_labels_tensor)
+                robustness3 = self.check_robustness(0.99, labels, pert_labels_tensor)
+                # robust_sum += torch.count_nonzero(robustness).item()
+                robust_sum1 += torch.count_nonzero(robustness1).item()
+                robust_sum2 += torch.count_nonzero(robustness2).item()
+                robust_sum3 += torch.count_nonzero(robustness3).item()
             correct += preds.eq(labels.view_as(preds)).sum().item()
             total += imgs.size(0)
 
         self.algorithm.train()
+        robust = {
+            f'{self.NAME}-Robustness Rate 0.9': robust_sum1 / total,
+            f'{self.NAME}-Robustness Rate 0.95': robust_sum2 / total,
+            f'{self.NAME}-Robustness Rate 0.99': robust_sum3 / total
+        }
         return {
             f'{self.NAME}-Accuracy': 100. * correct / total,
             f'{self.NAME}-Loss': loss_sum / total, 
-            f'{self.NAME}-Robustness Rate': robustness_sum / total
+            # f'{self.NAME}-Robustness Rate': robust_sum / total
+            **robust
         }
     
     def check_robustness(self, proportion, labels, pert_labels):
@@ -85,7 +100,7 @@ class Adversarial(Evaluator):
         super(Adversarial, self).__init__(algorithm, device, test_hparams)
         self.attack = attack
 
-    def calculate(self, loader):
+    def calculate(self, loader, epoch):
         self.algorithm.eval()
 
         correct, total, loss_sum = 0, 0, 0

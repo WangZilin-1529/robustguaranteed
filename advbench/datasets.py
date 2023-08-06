@@ -48,7 +48,8 @@ class CIFAR10(AdvRobDataset):
         train_data = CIFAR10_(root, train=True, transform=train_transforms)
         self.splits['validation'] = Subset(train_data, range(45000, 50000))
 
-        self.splits['test'] = CIFAR10_(root, train=False, transform=test_transforms)
+        test_data = CIFAR10_(root, train=False, transform=test_transforms)
+        self.splits['test'] = Subset(test_data, range(10000))
 
     @staticmethod
     def adjust_lr(optimizer, epoch, hparams):
@@ -178,6 +179,7 @@ class SVHN(AdvRobDataset):
 
         train_data = SVHN_(root, split='train', transform=train_transforms, download=True)
         self.splits['train'] = train_data
+        self.splits['validation'] = train_data
         self.splits['test'] = SVHN_(root, split='test', transform=test_transforms, download=True)
 
     @staticmethod

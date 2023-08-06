@@ -401,8 +401,8 @@ class CVaR_SGD(Algorithm):
         super(CVaR_SGD, self).__init__(input_shape, num_classes, hparams, device)
         self.meters['avg t'] = meters.AverageMeter()
         self.meters['plain loss'] = meters.AverageMeter()
-        self.meters['robustness probability'] = meters.AverageMeter()
-        self.meters['true robustness ratio'] = meters.AverageMeter()
+        # self.meters['robustness probability'] = meters.AverageMeter()
+        # self.meters['true robustness ratio'] = meters.AverageMeter()
 
     def sample_deltas(self, imgs):
         eps = self.hparams['epsilon']
@@ -435,9 +435,9 @@ class CVaR_SGD(Algorithm):
         beta = self.hparams['cvar_sgd_beta']
         M = self.hparams['cvar_sgd_M']
         ts = torch.ones(size=(imgs.size(0),)).to(self.device)
-        proportion, MoE, confi_level = self.hparams['proportion'], self.hparams['MoE'], self.hparams['confi_level']
-        N = util.calculate_sample_size(proportion, MoE, confi_level)
-        pert_labels = []
+        # proportion, MoE, confi_level = self.hparams['proportion'], self.hparams['MoE'], self.hparams['confi_level']
+        # N = util.calculate_sample_size(proportion, MoE, confi_level)
+        # pert_labels = []
         self.optimizer.zero_grad()
         for _ in range(self.hparams['cvar_sgd_n_steps']):
 
@@ -457,29 +457,29 @@ class CVaR_SGD(Algorithm):
             grad_ts = (1 - (1 / beta) * indicator_avg) / float(imgs.size(0))
             ts = ts - self.hparams['cvar_sgd_t_step_size'] * grad_ts
         
-        for _ in range(N):
-            pert_imgs = self.img_clamp(imgs + self.sample_deltas(imgs))
-            pert_value = self.predict(pert_imgs)
-            top2_labels = torch.topk(pert_value, 2, dim=1)[1]
-            top_labels = top2_labels[:,0:1]
-            pert_labels.append(top_labels)
-        pert_labels_tensor = torch.cat(pert_labels, dim=1)
-        robustness = self.check_robustness(proportion, labels, pert_labels_tensor)
+        # for _ in range(N):
+        #     pert_imgs = self.img_clamp(imgs + self.sample_deltas(imgs))
+        #     pert_value = self.predict(pert_imgs)
+        #     top2_labels = torch.topk(pert_value, 2, dim=1)[1]
+        #     top_labels = top2_labels[:,0:1]
+        #     pert_labels.append(top_labels)
+        # pert_labels_tensor = torch.cat(pert_labels, dim=1)
+        # robustness = self.check_robustness(proportion, labels, pert_labels_tensor)
 
         cvar_loss.backward()
         self.optimizer.step()
 
-        num_of_true = torch.count_nonzero(robustness).item()
+        # num_of_true = torch.count_nonzero(robustness).item()
 
-        true_values = torch.argmax(self.predict(imgs), dim=1)
-        true_robust_ratio = self.calculate_robustness_ratio(labels, true_values, robustness)
+        # true_values = torch.argmax(self.predict(imgs), dim=1)
+        # true_robust_ratio = self.calculate_robustness_ratio(labels, true_values, robustness)
 
 
         self.meters['Loss'].update(cvar_loss.item(), n=imgs.size(0))
         self.meters['avg t'].update(ts.mean().item(), n=imgs.size(0))
         self.meters['plain loss'].update(plain_loss.item() / M, n=imgs.size(0))
-        self.meters['robustness probability'].update(num_of_true/robustness.size(0), n=robustness.size(0))
-        self.meters['true robustness ratio'].update(true_robust_ratio, n=robustness.size(0))
+        # self.meters['robustness probability'].update(num_of_true/robustness.size(0), n=robustness.size(0))
+        # self.meters['true robustness ratio'].update(true_robust_ratio, n=robustness.size(0))
 
 class CVaR_SGD_PD(Algorithm):
     def __init__(self, input_shape, num_classes, hparams, device):
@@ -488,10 +488,34 @@ class CVaR_SGD_PD(Algorithm):
         self.meters['avg t'] = meters.AverageMeter()
         self.meters['plain loss'] = meters.AverageMeter()
         self.meters['dual variable'] = meters.AverageMeter()
+        self.meters['robustness probability'] = meters.AverageMeter()
+        self.meters['true robustness ratio'] = meters.AverageMeter()
         self.pd_optimizer = optimizers.PrimalDualOptimizer(
             parameters=self.dual_params,
             margin=self.hparams['g_dale_pd_margin'],
             eta=self.hparams['g_dale_pd_step_size'])
+    
+    def check_robustness(self, proportion, labels, pert_labels):
+        robustness = []
+        for i in range(labels.size(0)):
+            l = labels[i]
+            pert_l = pert_labels[i]
+            m = torch.sum(pert_l==l)
+            p = m/pert_l.size(0)
+            if p > proportion:
+                robustness.append(True)
+            else:
+                robustness.append(False)
+        return torch.tensor(robustness)
+    
+    def calculate_robustness_ratio(self, labels, top_labels, robustness):
+        count = 0
+        for i in range(labels.size(0)):
+            l = labels[i]
+            pert_l = top_labels[i]
+            if l==pert_l and robustness[i]:
+                count += 1
+        return count/labels.size(0)
 
     def sample_deltas(self, imgs):
         eps = self.hparams['epsilon']
@@ -502,6 +526,9 @@ class CVaR_SGD_PD(Algorithm):
         beta = self.hparams['cvar_sgd_beta']
         M = self.hparams['cvar_sgd_M']
         ts = torch.ones(size=(imgs.size(0),)).to(self.device)
+        # proportion, MoE, confi_level = self.hparams['proportion'], self.hparams['MoE'], self.hparams['confi_level']
+        # N = util.calculate_sample_size(proportion, MoE, confi_level)
+        # pert_labels = []
 
         self.optimizer.zero_grad()
         for _ in range(self.hparams['cvar_sgd_n_steps']):
@@ -521,16 +548,31 @@ class CVaR_SGD_PD(Algorithm):
             # gradient update on ts
             grad_ts = (1 - (1 / beta) * indicator_avg) / float(imgs.size(0))
             ts = ts - self.hparams['cvar_sgd_t_step_size'] * grad_ts
+        
+        # for _ in range(N):
+        #     pert_imgs = self.img_clamp(imgs + self.sample_deltas(imgs))
+        #     pert_value = self.predict(pert_imgs)
+        #     top2_labels = torch.topk(pert_value, 2, dim=1)[1]
+        #     top_labels = top2_labels[:,0:1]
+        #     pert_labels.append(top_labels)
+        # pert_labels_tensor = torch.cat(pert_labels, dim=1)
+        # robustness = self.check_robustness(proportion, labels, pert_labels_tensor)
 
         loss = cvar_loss + self.dual_params['dual_var'] * (plain_loss / float(M))
         loss.backward()
         self.optimizer.step()
         self.pd_optimizer.step(plain_loss.detach() / M)
+        # num_of_true = torch.count_nonzero(robustness).item()
+
+        # true_values = torch.argmax(self.predict(imgs), dim=1)
+        # true_robust_ratio = self.calculate_robustness_ratio(labels, true_values, robustness)
 
         self.meters['Loss'].update(cvar_loss.item(), n=imgs.size(0))
         self.meters['avg t'].update(ts.mean().item(), n=imgs.size(0))
         self.meters['plain loss'].update(plain_loss.item() / M, n=imgs.size(0))
         self.meters['dual variable'].update(self.dual_params['dual_var'].item(), n=1)
+        # self.meters['robustness probability'].update(num_of_true/robustness.size(0), n=robustness.size(0))
+        # self.meters['true robustness ratio'].update(true_robust_ratio, n=robustness.size(0))
 
 class Gaussian_DALE_PD_Reverse(PrimalDualBase):
     def __init__(self, input_shape, num_classes, hparams, device):
@@ -586,9 +628,14 @@ class KL_DALE_PD(PrimalDualBase):
 class RobustGuaranteed(Algorithm):
     def __init__(self, input_shape, num_classes, hparams, device):
         super(RobustGuaranteed, self).__init__(input_shape, num_classes, hparams, device)
+        # self.dual_params = {'dual_var': torch.tensor(1.0).to(self.device)}
         self.meters['avg largest loss'] = meters.AverageMeter()
-        self.meters['robustness probability'] = meters.AverageMeter()
-        self.meters['true robustness ratio'] = meters.AverageMeter()
+        # self.meters['robustness probability'] = meters.AverageMeter()
+        # self.meters['true robustness ratio'] = meters.AverageMeter()
+        # self.pd_optimizer = optimizers.PrimalDualOptimizer(
+        #     parameters=self.dual_params,
+        #     margin=self.hparams['g_dale_pd_margin'],
+        #     eta=self.hparams['g_dale_pd_step_size'])
 
     def sample_deltas(self, imgs):
         eps = self.hparams['epsilon']
@@ -632,32 +679,32 @@ class RobustGuaranteed(Algorithm):
 
         self.optimizer.zero_grad()
 
-        proportion, MoE, confi_level = self.hparams['proportion'], self.hparams['MoE'], self.hparams['confi_level']
-        N = util.calculate_sample_size(proportion, MoE, confi_level)
+        # proportion, MoE, confi_level = self.hparams['proportion'], self.hparams['MoE'], self.hparams['confi_level']
+        # N = util.calculate_sample_size(proportion, MoE, confi_level)
         pert_labels = []
-        for _ in range(N):
-            pert_imgs = self.img_clamp(imgs + self.sample_deltas(imgs))
-            pert_value = self.predict(pert_imgs)
-            top2_labels = torch.topk(pert_value, 2, dim=1)[1]
-            top_labels = top2_labels[:,0:1]
-            pert_labels.append(top_labels)
-        pert_labels_tensor = torch.cat(pert_labels, dim=1)
-        robustness = self.check_robustness(proportion, labels, pert_labels_tensor)
+        # for _ in range(N):
+        #     pert_imgs = self.img_clamp(imgs + self.sample_deltas(imgs))
+        #     pert_value = self.predict(pert_imgs)
+        #     top2_labels = torch.topk(pert_value, 2, dim=1)[1]
+        #     top_labels = top2_labels[:,0:1]
+        #     pert_labels.append(top_labels)
+        # pert_labels_tensor = torch.cat(pert_labels, dim=1)
+        # robustness = self.check_robustness(proportion, labels, pert_labels_tensor)
 
         robust_loss = F.cross_entropy(self.predict(imgs), labels).mean()
 
         robust_loss.backward()
         self.optimizer.step()
 
-        num_of_true = torch.count_nonzero(robustness).item()
+        # num_of_true = torch.count_nonzero(robustness).item()
 
-        true_values = torch.argmax(self.predict(imgs), dim=1)
-        true_robust_ratio = self.calculate_robustness_ratio(labels, true_values, robustness)
+        # true_values = torch.argmax(self.predict(imgs), dim=1)
+        # true_robust_ratio = self.calculate_robustness_ratio(labels, true_values, robustness)
 
         self.meters['Loss'].update(robust_loss.item(), n=imgs.size(0))
         # self.meters['avg largest loss'].update(robust_loss.item()/len(selected_losses), n=imgs.size(0))
-        self.meters['robustness probability'].update(num_of_true/robustness.size(0), n=robustness.size(0))
-        self.meters['true robustness ratio'].update(true_robust_ratio, n=robustness.size(0))
+        # self.meters['robustness probability'].update(num_of_true/robustness.size(0), n=robustness.size(0))
+        # self.meters['true robustness ratio'].update(true_robust_ratio, n=robustness.size(0))
         
 
     def step(self, imgs, labels):
@@ -689,12 +736,13 @@ class RobustGuaranteed(Algorithm):
             pert_loss2 = F.cross_entropy(pert_value, new_labels, reduction='none')
             pert_losses1.append(pert_loss1.view(-1, 1))
             pert_losses2.append(pert_loss2.view(-1, 1))
-            pert_labels.append(top_labels)
-        pert_labels_tensor = torch.cat(pert_labels, dim=1)
+            # pert_labels.append(top_labels)
+        # pert_labels_tensor = torch.cat(pert_labels, dim=1)
         pert_losses1_tensor = torch.cat(pert_losses1, dim=1)
         pert_losses2_tensor = torch.cat(pert_losses2, dim=1)
-        robustness = self.check_robustness(proportion, labels, pert_labels_tensor)
-        _, indices = torch.sort(torch.add(pert_losses1_tensor, -pert_losses2_tensor), dim=1)
+        # robustness = self.check_robustness(proportion, labels, pert_labels_tensor)
+        # _, indices = torch.sort(torch.add(pert_losses1_tensor, -pert_losses2_tensor), dim=1)
+        sorted_losses, indices = torch.sort(torch.add(pert_losses1_tensor, -pert_losses2_tensor), dim=1)
         # selected_losses = torch.ones(robustness.size())
         selected_losses = []
 
@@ -704,16 +752,17 @@ class RobustGuaranteed(Algorithm):
 
         selected_losses_tensor = torch.tensor(selected_losses).view(-1, 1).to(self.device)
         robust_loss = (pert_losses1_tensor-selected_losses_tensor).mean(dim=1).mean()
+        # robust_loss = selected_losses_tensor.mean() + self.dual_params['dual_var'] * pert_losses1_tensor.mean(dim=1).mean()
 
         robust_loss.backward()
         self.optimizer.step()
 
-        num_of_true = torch.count_nonzero(robustness).item()
+        # num_of_true = torch.count_nonzero(robustness).item()
 
-        true_values = torch.argmax(self.predict(imgs), dim=1)
-        true_robust_ratio = self.calculate_robustness_ratio(labels, true_values, robustness)
+        # true_values = torch.argmax(self.predict(imgs), dim=1)
+        # true_robust_ratio = self.calculate_robustness_ratio(labels, true_values, robustness)
 
         self.meters['Loss'].update(robust_loss.item(), n=imgs.size(0))
         self.meters['avg largest loss'].update(robust_loss.item()/len(selected_losses), n=imgs.size(0))
-        self.meters['robustness probability'].update(num_of_true/robustness.size(0), n=robustness.size(0))
-        self.meters['true robustness ratio'].update(true_robust_ratio, n=robustness.size(0))
+        # self.meters['robustness probability'].update(num_of_true/robustness.size(0), n=robustness.size(0))
+        # self.meters['true robustness ratio'].update(true_robust_ratio, n=robustness.size(0))

@@ -99,8 +99,8 @@ def _hparams(algorithm: str, dataset: str, random_seed: int):
     _hparam('cvar_sgd_n_steps', 5, lambda r: 10)
 
     #### Robustness Guaranteed SGD ####
-    _hparam('MoE', 0.1, lambda R: 0.1)
-    _hparam('proportion', 0.9, lambda r: 0.9)
+    _hparam('MoE', 0.05, lambda R: 0.05)
+    _hparam('proportion', 0.95, lambda r: 0.95)
     _hparam('tanh_param', 10, lambda r: 10)
     _hparam('confi_level', 0.95, lambda r: 0.95)
 
@@ -162,8 +162,8 @@ def test_hparams(algorithm: str, dataset: str):
     _hparam('cvar_sgd_n_steps', 10)
 
     #### Robustness Guaranteed SGD ####
-    _hparam('MoE', 0.1)
-    _hparam('proportion', 0.9)
+    _hparam('MoE', 0.05)
+    _hparam('proportion', 0.95)
     _hparam('tanh_param', 10)
     _hparam('confi_level', 0.95)
 
