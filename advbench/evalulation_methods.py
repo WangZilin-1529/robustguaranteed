@@ -232,7 +232,7 @@ class Augmented(Evaluator):
         return beta_quantile_acc_per_datum.mean().item()
 
     @torch.no_grad()
-    def calculate(self, loader):
+    def calculate(self, loader, epoch):
         self.algorithm.eval()
 
         correct, total, loss_sum = 0, 0, 0

@@ -127,6 +127,11 @@ class PGD(Algorithm):
         super(PGD, self).__init__(input_shape, num_classes, hparams, device)
         self.attack = attacks.PGD_Linf(self.classifier, self.hparams, device)
 
+    def sample_deltas(self, imgs):
+        eps = self.hparams['epsilon']
+        return 2 * eps * torch.rand_like(imgs) - eps
+
+
     def step(self, imgs, labels):
 
         adv_imgs = self.attack(imgs, labels)
@@ -252,6 +257,11 @@ class MART(Algorithm):
         self.meters['robust loss'] = meters.AverageMeter()
         self.meters['invariance loss'] = meters.AverageMeter()
 
+    def sample_deltas(self, imgs):
+        eps = self.hparams['epsilon']
+        return 2 * eps * torch.rand_like(imgs) - eps
+
+
     def step(self, imgs, labels):
         
         adv_imgs = self.attack(imgs, labels)
@@ -334,6 +344,7 @@ class Gaussian_DALE_PD(PrimalDualBase):
             parameters=self.dual_params,
             margin=self.hparams['g_dale_pd_margin'],
             eta=self.hparams['g_dale_pd_step_size'])
+    
 
     def step(self, imgs, labels):
         adv_imgs = self.attack(imgs, labels)
@@ -607,6 +618,10 @@ class KL_DALE_PD(PrimalDualBase):
             parameters=self.dual_params,
             margin=self.hparams['g_dale_pd_margin'],
             eta=self.hparams['g_dale_pd_step_size'])
+        
+    def sample_deltas(self, imgs):
+        eps = self.hparams['epsilon']
+        return 2 * eps * torch.rand_like(imgs) - eps
 
     def step(self, imgs, labels):
         adv_imgs = self.attack(imgs, labels)
@@ -715,25 +730,22 @@ class RobustGuaranteed(Algorithm):
 
         proportion, MoE, confi_level = self.hparams['proportion'], self.hparams['MoE'], self.hparams['confi_level']
         N = util.calculate_sample_size(proportion, MoE, confi_level)
-        pert_labels = []
         pert_losses1 = []
         pert_losses2 = []
         for _ in range(N):
             pert_imgs = self.img_clamp(imgs + self.sample_deltas(imgs))
             pert_value = self.predict(pert_imgs)
             top2_labels = torch.topk(pert_value, 2, dim=1)[1]
-            top_labels = top2_labels[:,0:1]
             new_labels_list = []
             for i in range(B):
-                if top2_labels[i][0] == labels[i]:
-                    new_labels_list.append(top2_labels[i][1])
-                else:
-                    new_labels_list.append(top2_labels[i][0])
+                new_labels_list.append(top2_labels[i][1])
             new_labels = torch.tensor(new_labels_list).to(self.device)
-
             # pert_loss = F.cross_entropy(pert_value, labels, reduction='none') - F.cross_entropy(pert_value, new_labels, reduction='none').detach()
             pert_loss1 = F.cross_entropy(pert_value, labels, reduction='none')
             pert_loss2 = F.cross_entropy(pert_value, new_labels, reduction='none')
+            for i in range(B):
+                if top2_labels[i][0] != labels[i]:
+                    pert_loss2[i] = -10000
             pert_losses1.append(pert_loss1.view(-1, 1))
             pert_losses2.append(pert_loss2.view(-1, 1))
             # pert_labels.append(top_labels)

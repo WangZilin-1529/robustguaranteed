@@ -16,9 +16,7 @@ from typing import List
 # c, d = b.split(1, dim=1)
 # print(c)
 # print(d)
-a = {'a': 1, 'b':2}
-b = {}
-print({'c': 3, **a})
+
 
 # a = np.array([[2,1],[4,3],[0,1],[1,0]])
 # b = np.array([[1],[2], [1], [2]])

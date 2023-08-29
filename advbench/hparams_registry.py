@@ -28,7 +28,7 @@ def _hparams(algorithm: str, dataset: str, random_seed: int):
     if 'MNIST' in dataset:
         _hparam('batch_size', 64, lambda r: int(2 ** r.uniform(3, 8)))
     elif dataset == 'CIFAR10' or dataset == 'SVHN':
-        _hparam('batch_size', 32, lambda r: int(2 ** r.uniform(3, 5)))
+        _hparam('batch_size', 20, lambda r: int(2 ** r.uniform(3, 5)))
 
     # optimization
     _hparam('learning_rate', 0.01, lambda r: 10 ** r.uniform(-4.5, -2.5))
@@ -36,7 +36,7 @@ def _hparams(algorithm: str, dataset: str, random_seed: int):
     _hparam('weight_decay', 3.5e-3, lambda r: 10 ** r.uniform(-6, -3))
 
     if 'MNIST' in dataset:
-        _hparam('epsilon', 0.3, lambda r: 0.3)
+        _hparam('epsilon', 0.4, lambda r: 0.4)
     elif dataset == 'CIFAR10' or dataset == 'SVHN':
         _hparam('epsilon', 0.031, lambda r: 0.031)
 
@@ -94,14 +94,13 @@ def _hparams(algorithm: str, dataset: str, random_seed: int):
 
     # CVaR SGD
     _hparam('cvar_sgd_t_step_size', 1.0, lambda r: 0.001)
-    _hparam('cvar_sgd_beta', 0.5, lambda r: 0.1)
+    _hparam('cvar_sgd_beta', 0.05, lambda r: 0.1)
     _hparam('cvar_sgd_M', 20, lambda r: 10)
     _hparam('cvar_sgd_n_steps', 5, lambda r: 10)
 
     #### Robustness Guaranteed SGD ####
     _hparam('MoE', 0.05, lambda R: 0.05)
     _hparam('proportion', 0.95, lambda r: 0.95)
-    _hparam('tanh_param', 10, lambda r: 10)
     _hparam('confi_level', 0.95, lambda r: 0.95)
 
     # TERM
@@ -131,11 +130,11 @@ def test_hparams(algorithm: str, dataset: str):
         assert(name not in hparams)
         hparams[name] = default_val
 
-    _hparam('test_betas', [0.1, 0.05, 0.01])
+    _hparam('test_betas', [0, 0.1, 0.05, 0.01])
     _hparam('aug_n_samples', 100)
 
     if 'MNIST' in dataset:
-        _hparam('epsilon', 0.3)
+        _hparam('epsilon', 0.4)
     elif dataset == 'CIFAR10' or dataset == 'SVHN':
         _hparam('epsilon', 8/255.)
 
@@ -164,7 +163,6 @@ def test_hparams(algorithm: str, dataset: str):
     #### Robustness Guaranteed SGD ####
     _hparam('MoE', 0.05)
     _hparam('proportion', 0.95)
-    _hparam('tanh_param', 10)
     _hparam('confi_level', 0.95)
 
     return hparams

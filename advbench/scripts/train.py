@@ -32,12 +32,12 @@ def main(args, hparams, test_hparams):
         num_workers=dataset.N_WORKERS,
         pin_memory=False,
         shuffle=True)
-    validation_loader = DataLoader(
-        dataset=dataset.splits['validation'],
-        batch_size=hparams['batch_size'],
-        num_workers=dataset.N_WORKERS,
-        pin_memory=False,
-        shuffle=False)
+    # validation_loader = DataLoader(
+    #     dataset=dataset.splits['validation'],
+    #     batch_size=hparams['batch_size'],
+    #     num_workers=dataset.N_WORKERS,
+    #     pin_memory=False,
+    #     shuffle=False)
     test_loader = DataLoader(
         dataset=dataset.splits['test'],
         batch_size=100,
@@ -102,13 +102,13 @@ def main(args, hparams, test_hparams):
         misc.print_row([key for key in results['Train'].keys()]) 
         misc.print_row([results['Train'][key] for key in results['Train'].keys()])
 
-        for evaluator in evaluators:
-            for k, v in evaluator.calculate(validation_loader, epoch).items():
-                results['Validation'].update({k: v})
+        # for evaluator in evaluators:
+        #     for k, v in evaluator.calculate(validation_loader, epoch).items():
+        #         results['Validation'].update({k: v})
 
-        print('\nValidation')
-        misc.print_row([key for key in results['Validation'].keys()]) 
-        misc.print_row([results['Validation'][key] for key in results['Validation'].keys()])
+        # print('\nValidation')
+        # misc.print_row([key for key in results['Validation'].keys()]) 
+        # misc.print_row([results['Validation'][key] for key in results['Validation'].keys()])
 
         for evaluator in evaluators:
             for k, v in evaluator.calculate(test_loader, epoch).items():
@@ -145,16 +145,16 @@ def main(args, hparams, test_hparams):
     records = reporting.load_record(json_path)
 
     train_dict = collections.defaultdict(lambda: [])
-    validation_dict = collections.defaultdict(lambda: [])
+    # validation_dict = collections.defaultdict(lambda: [])
     test_dict = collections.defaultdict(lambda: [])
 
     for record in records:
         for k in records[0]['Train'].keys():
             train_dict[k].append(record['Train'][k])
 
-        for k in records[0]['Validation'].keys():
-            validation_dict[k].append(record['Validation'][k])
-            test_dict[k].append(record['Test'][k])
+        # for k in records[0]['Validation'].keys():
+        #     validation_dict[k].append(record['Validation'][k])
+        #     test_dict[k].append(record['Test'][k])
 
     def dict_to_dataframe(split, d):
         df = pd.DataFrame.from_dict(d)
@@ -169,12 +169,12 @@ def main(args, hparams, test_hparams):
         return df
 
     train_df = dict_to_dataframe('Train', train_dict)
-    validation_df = dict_to_dataframe('Validation', validation_dict)
+    # validation_df = dict_to_dataframe('Validation', validation_dict)
     test_df = dict_to_dataframe('Test', test_dict)
-    selection_df = pd.concat([validation_df, test_df], ignore_index=True)
+    # selection_df = pd.concat([validation_df, test_df], ignore_index=True)
 
     train_df.to_pickle(train_df_path)
-    selection_df.to_pickle(selection_df_path)
+    # selection_df.to_pickle(selection_df_path)
 
     with open(os.path.join(args.output_dir, 'done'), 'w') as f:
         f.write('done')
@@ -187,6 +187,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, default='MNIST', help='Dataset to use')
     parser.add_argument('--algorithm', type=str, default='ERM', help='Algorithm to run')
     parser.add_argument('--hparams', type=str, help='JSON-serialized hparams dict')
+    parser.add_argument('--proportion', type=float, help='Proportion value')
     parser.add_argument('--hparams_seed', type=int, default=0, help='Seed for hyperparameters')
     parser.add_argument('--trial_seed', type=int, default=0, help='Trial number')
     parser.add_argument('--seed', type=int, default=0, help='Seed for everything else')
