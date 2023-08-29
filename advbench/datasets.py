@@ -198,7 +198,7 @@ class SVHN(AdvRobDataset):
 
 class ImageNet(AdvRobDataset):
      
-    INPUT_SHAPE = (3, 32, 32)
+    INPUT_SHAPE = (3, 224, 224)
     NUM_CLASSES = 10
     N_EPOCHS = 30
     CHECKPOINT_FREQ = 10
@@ -209,15 +209,18 @@ class ImageNet(AdvRobDataset):
         super(SVHN, self).__init__(device)
 
         train_transforms = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
+            transforms.RandomCrop(224, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor()])
-        test_transforms = transforms.ToTensor()
+        test_transforms = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor()])
 
-        train_data = SVHN_(root, split='train', transform=train_transforms, download=True)
+        train_data = ImageNet_(root, split='train', transform=train_transforms, download=True)
         self.splits['train'] = train_data
         self.splits['validation'] = train_data
-        self.splits['test'] = SVHN_(root, split='test', transform=test_transforms, download=True)
+        self.splits['test'] = ImageNet_(root, split='val', transform=test_transforms, download=True)
 
     @staticmethod
     def adjust_lr(optimizer, epoch, hparams):
