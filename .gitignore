@@ -2,5 +2,5 @@ advbench/data/*
 __pycache__/
 .vscode
 TODO.md
-train_output/
+train_output*/
 data_saved/

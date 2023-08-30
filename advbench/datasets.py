@@ -5,6 +5,7 @@ from torchvision.datasets import CIFAR10 as CIFAR10_
 from torchvision.datasets import MNIST as TorchvisionMNIST
 from torchvision.datasets import SVHN as SVHN_
 from torchvision.datasets import ImageNet as ImageNet_
+from torchvision.datasets import CIFAR100 as CIFAR100_
 
 SPLITS = ['train', 'val', 'test']
 DATASETS = ['CIFAR10', 'MNIST', 'SVHN']
@@ -51,6 +52,58 @@ class CIFAR10(AdvRobDataset):
 
         test_data = CIFAR10_(root, train=False, transform=test_transforms)
         self.splits['test'] = Subset(test_data, range(10000))
+
+    @staticmethod
+    def adjust_lr(optimizer, epoch, hparams):
+        lr = hparams['learning_rate']
+        if epoch >= 55:    # 150
+            lr = hparams['learning_rate'] * 0.1
+        if epoch >= 75:    # 175
+            lr = hparams['learning_rate'] * 0.01
+        if epoch >= 90:    # 190
+            lr = hparams['learning_rate'] * 0.001
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
+
+class CIFAR100(AdvRobDataset):
+     
+    INPUT_SHAPE = (3, 32, 32)
+    NUM_CLASSES = 100
+    N_EPOCHS = 80
+    CHECKPOINT_FREQ = 10
+    LOG_INTERVAL = 100
+    HAS_LR_SCHEDULE = False
+
+    def __init__(self, root, device):
+        super(CIFAR100, self).__init__(device)
+
+        train_transforms = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor()])
+        test_transforms = transforms.ToTensor()
+
+        train_data = CIFAR100_(root, train=True, transform=train_transforms, download=True)
+        self.splits['train'] = train_data
+        # self.splits['train'] = Subset(train_data, range(5000))
+
+        train_data = CIFAR100_(root, train=True, transform=train_transforms)
+        self.splits['validation'] = Subset(train_data, range(45000, 50000))
+
+        test_data = CIFAR100_(root, train=False, transform=test_transforms)
+        self.splits['test'] = Subset(test_data, range(10000))
+
+    @staticmethod
+    def adjust_lr(optimizer, epoch, hparams):
+        lr = hparams['learning_rate']
+        if epoch >= 55:    # 150
+            lr = hparams['learning_rate'] * 0.1
+        if epoch >= 75:    # 175
+            lr = hparams['learning_rate'] * 0.01
+        if epoch >= 90:    # 190
+            lr = hparams['learning_rate'] * 0.001
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
 
     @staticmethod
     def adjust_lr(optimizer, epoch, hparams):
@@ -199,14 +252,14 @@ class SVHN(AdvRobDataset):
 class ImageNet(AdvRobDataset):
      
     INPUT_SHAPE = (3, 224, 224)
-    NUM_CLASSES = 10
+    NUM_CLASSES = 1000
     N_EPOCHS = 30
     CHECKPOINT_FREQ = 10
     LOG_INTERVAL = 100
     HAS_LR_SCHEDULE = False
 
     def __init__(self, root, device):
-        super(SVHN, self).__init__(device)
+        super(ImageNet, self).__init__(device)
 
         train_transforms = transforms.Compose([
             transforms.RandomCrop(224, padding=4),

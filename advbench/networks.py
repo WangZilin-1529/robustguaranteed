@@ -10,7 +10,7 @@ def Classifier(input_shape, num_classes, hparams):
         return MNISTNet(input_shape, num_classes)
     elif input_shape[0] == 3:
         # return models.resnet18(num_classes=num_classes)
-        return ResNet18()
+        return ResNet18(num_classes=num_classes)
     else:
         assert False
 
@@ -130,8 +130,8 @@ class ResNet(nn.Module):
         return out
 
 
-def ResNet18():
-    return ResNet(BasicBlock, [2, 2, 2, 2])
+def ResNet18(num_classes=10):
+    return ResNet(BasicBlock, [2, 2, 2, 2], num_classes=num_classes)
 
-def ResNet50():
-    return ResNet(Bottleneck, [3, 4, 6, 3])
+def ResNet50(num_classes=100):
+    return ResNet(Bottleneck, [3, 4, 6, 3], num_classes=num_classes)
