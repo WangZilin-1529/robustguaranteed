@@ -109,7 +109,7 @@ def main(args, hparams, test_hparams):
         # print('\nValidation')
         # misc.print_row([key for key in results['Validation'].keys()]) 
         # misc.print_row([results['Validation'][key] for key in results['Validation'].keys()])
-        if epoch % 5 == 0 or epoch > 45:
+        if epoch % 5 == 0 or epoch > 25:
             for evaluator in evaluators:
                 for k, v in evaluator.calculate(test_loader, epoch).items():
                     results['Test'].update({k: v})

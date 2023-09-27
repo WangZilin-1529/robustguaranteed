@@ -6,9 +6,12 @@ from torchvision.datasets import MNIST as TorchvisionMNIST
 from torchvision.datasets import SVHN as SVHN_
 from torchvision.datasets import ImageNet as ImageNet_
 from torchvision.datasets import CIFAR100 as CIFAR100_
+from torchvision.datasets import ImageFolder
+import cv2
+
 
 SPLITS = ['train', 'val', 'test']
-DATASETS = ['CIFAR10', 'MNIST', 'SVHN']
+DATASETS = ['CIFAR10', 'MNIST', 'SVHN', 'CIFAR100', 'CIFAR100_EFF', 'TinyImagenet']
 
 class AdvRobDataset:
 
@@ -105,6 +108,39 @@ class CIFAR100(AdvRobDataset):
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
+class CIFAR100_EFF(AdvRobDataset):
+     
+    INPUT_SHAPE = (3, 224, 224)
+    NUM_CLASSES = 100
+    N_EPOCHS = 80
+    CHECKPOINT_FREQ = 10
+    LOG_INTERVAL = 100
+    HAS_LR_SCHEDULE = False
+
+    def __init__(self, root, device):
+        super(CIFAR100_EFF, self).__init__(device)
+
+        train_transforms = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor()])
+        test_transforms = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor()
+            ])
+
+        train_data = CIFAR100_(root, train=True, transform=train_transforms, download=True)
+        self.splits['train'] = train_data
+        # self.splits['train'] = Subset(train_data, range(5000))
+
+        train_data = CIFAR100_(root, train=True, transform=train_transforms)
+        self.splits['validation'] = Subset(train_data, range(45000, 50000))
+
+        test_data = CIFAR100_(root, train=False, transform=test_transforms)
+        self.splits['test'] = Subset(test_data, range(10000))
+
     @staticmethod
     def adjust_lr(optimizer, epoch, hparams):
         lr = hparams['learning_rate']
@@ -116,6 +152,9 @@ class CIFAR100(AdvRobDataset):
             lr = hparams['learning_rate'] * 0.001
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
+
+    def resize_img(self, imgs, shape):
+        return cv2.resize(imgs, (shape[1], shape[2]), interpolation=cv2.INTER_CUBIC)
 
 class MNISTTensor(AdvRobDataset):
 
@@ -249,31 +288,30 @@ class SVHN(AdvRobDataset):
             param_group['lr'] = lr
 
 
-class ImageNet(AdvRobDataset):
+class TinyImagenet(AdvRobDataset):
      
-    INPUT_SHAPE = (3, 224, 224)
-    NUM_CLASSES = 1000
-    N_EPOCHS = 30
+    INPUT_SHAPE = (3, 64, 64)
+    NUM_CLASSES = 200
+    N_EPOCHS = 50
     CHECKPOINT_FREQ = 10
     LOG_INTERVAL = 100
     HAS_LR_SCHEDULE = False
 
     def __init__(self, root, device):
-        super(ImageNet, self).__init__(device)
+        super(TinyImagenet, self).__init__(device)
 
         train_transforms = transforms.Compose([
-            transforms.RandomCrop(224, padding=4),
+            transforms.RandomCrop(64, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor()])
         test_transforms = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
             transforms.ToTensor()])
 
-        train_data = ImageNet_(root, split='train', transform=train_transforms, download=True)
+        train_data = ImageFolder(root='./advbench/data/tiny-imagenet/train', transform=train_transforms)
+        test_data = ImageFolder(root='./advbench/data/tiny-imagenet/test', transform=test_transforms)
         self.splits['train'] = train_data
-        self.splits['validation'] = train_data
-        self.splits['test'] = ImageNet_(root, split='val', transform=test_transforms, download=True)
+        self.splits['validation'] = test_data
+        self.splits['test'] = test_data
 
     @staticmethod
     def adjust_lr(optimizer, epoch, hparams):

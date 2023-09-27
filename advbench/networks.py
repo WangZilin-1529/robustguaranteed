@@ -3,14 +3,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 from collections import OrderedDict
+from torchvision.models.efficientnet import EfficientNet
+
 
 def Classifier(input_shape, num_classes, hparams):
     if input_shape[0] == 1:
         # return SmallCNN()
         return MNISTNet(input_shape, num_classes)
-    elif input_shape[0] == 3:
+    elif input_shape[0] == 3 and (input_shape[1]==32 or input_shape[1]==64):
         # return models.resnet18(num_classes=num_classes)
         return ResNet18(num_classes=num_classes)
+    elif input_shape[0] == 3 and input_shape[1]==224:
+        return EffNetV2(num_classes=num_classes)
     else:
         assert False
 
@@ -98,17 +102,29 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, num_classes=10):
+    def __init__(self, block, num_blocks, num_classes=200):
         super(ResNet, self).__init__()
-        self.in_planes = 64
+        
+        if num_classes==200:
+            self.in_planes = 32
 
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(64)
-        self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
-        self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
-        self.linear = nn.Linear(512 * block.expansion, num_classes)
+            self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1, bias=False)
+            self.bn1 = nn.BatchNorm2d(32)
+            self.layer1 = self._make_layer(block, 32, num_blocks[0], stride=1)
+            self.layer2 = self._make_layer(block, 64, num_blocks[1], stride=2)
+            self.layer3 = self._make_layer(block, 128, num_blocks[2], stride=2)
+            self.layer4 = self._make_layer(block, 256, num_blocks[3], stride=2)
+            self.linear = nn.Linear(1024 * block.expansion, num_classes)
+        else:
+            self.in_planes = 64
+
+            self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+            self.bn1 = nn.BatchNorm2d(64)
+            self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
+            self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
+            self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
+            self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
+            self.linear = nn.Linear(512 * block.expansion, num_classes)
 
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1] * (num_blocks - 1)
@@ -135,3 +151,13 @@ def ResNet18(num_classes=10):
 
 def ResNet50(num_classes=100):
     return ResNet(Bottleneck, [3, 4, 6, 3], num_classes=num_classes)
+
+class EffNetV2(nn.Module):
+    def __init__(self, num_classes=10):
+        super(EffNetV2, self).__init__()
+        self.model = models.get_model('efficientnet_b0')
+        self.model.classifier = nn.Sequential(nn.Dropout(p=0.5, inplace=True), nn.Linear(1280, num_classes))
+
+    def forward(self, x):
+        out = self.model(x)
+        return out

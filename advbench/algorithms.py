@@ -696,7 +696,6 @@ class RobustGuaranteed(Algorithm):
 
         # proportion, MoE, confi_level = self.hparams['proportion'], self.hparams['MoE'], self.hparams['confi_level']
         # N = util.calculate_sample_size(proportion, MoE, confi_level)
-        pert_labels = []
         # for _ in range(N):
         #     pert_imgs = self.img_clamp(imgs + self.sample_deltas(imgs))
         #     pert_value = self.predict(pert_imgs)
@@ -705,7 +704,6 @@ class RobustGuaranteed(Algorithm):
         #     pert_labels.append(top_labels)
         # pert_labels_tensor = torch.cat(pert_labels, dim=1)
         # robustness = self.check_robustness(proportion, labels, pert_labels_tensor)
-
         robust_loss = F.cross_entropy(self.predict(imgs), labels).mean()
 
         robust_loss.backward()

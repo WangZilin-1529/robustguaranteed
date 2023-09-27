@@ -27,8 +27,10 @@ def _hparams(algorithm: str, dataset: str, random_seed: int):
     # Unconditional hparam definitions.
     if 'MNIST' in dataset:
         _hparam('batch_size', 64, lambda r: int(2 ** r.uniform(3, 8)))
-    elif dataset == 'CIFAR10' or dataset == 'SVHN' or dataset == 'CIFAR100':
+    elif dataset == 'SVHN' or 'CIFAR10' in dataset:
         _hparam('batch_size', 20, lambda r: int(2 ** r.uniform(3, 5)))
+    elif dataset == 'TinyImagenet':
+        _hparam('batch_size', 10, lambda r: int(2 ** r.uniform(3, 5)))
 
     # optimization
     _hparam('learning_rate', 0.01, lambda r: 10 ** r.uniform(-4.5, -2.5))
@@ -37,7 +39,7 @@ def _hparams(algorithm: str, dataset: str, random_seed: int):
 
     if 'MNIST' in dataset:
         _hparam('epsilon', 0.4, lambda r: 0.4)
-    elif dataset == 'CIFAR10' or dataset == 'SVHN' or dataset == 'CIFAR100':
+    elif dataset == 'SVHN' or 'CIFAR10' in dataset or dataset =='TinyImagenet':
         _hparam('epsilon', 0.031, lambda r: 0.031)
 
     # Algorithm specific
@@ -46,7 +48,7 @@ def _hparams(algorithm: str, dataset: str, random_seed: int):
     if 'MNIST' in dataset:
         _hparam('pgd_n_steps', 7, lambda r: 7)
         _hparam('pgd_step_size', 0.1, lambda r: r.uniform(0.05, 0.2))
-    elif dataset == 'CIFAR10' or dataset == 'SVHN' or dataset == 'CIFAR100':
+    elif dataset == 'SVHN' or 'CIFAR10' in dataset or dataset =='TinyImagenet':
         _hparam('pgd_n_steps', 10, lambda r: 10)
         _hparam('pgd_step_size', 0.007, lambda r: 0.007)
 
@@ -55,7 +57,7 @@ def _hparams(algorithm: str, dataset: str, random_seed: int):
         _hparam('trades_n_steps', 7, lambda r: 7)
         _hparam('trades_step_size', 0.1, lambda r: r.uniform(0.01, 0.1))
         _hparam('trades_beta', 1.0, lambda r: r.uniform(0.1, 10.0))
-    elif dataset == 'CIFAR10' or dataset == 'SVHN' or dataset == 'CIFAR100':
+    elif dataset == 'SVHN' or 'CIFAR10' in dataset or dataset =='TinyImagenet':
         _hparam('trades_n_steps', 10, lambda r: 15)
         _hparam('trades_step_size', 2/255., lambda r: r.uniform(0.01, 0.1))
         _hparam('trades_beta', 6.0, lambda r: r.uniform(0.1, 10.0))
@@ -63,7 +65,7 @@ def _hparams(algorithm: str, dataset: str, random_seed: int):
     ##### MART #####
     if 'MNIST' in dataset:
         _hparam('mart_beta', 5.0, lambda r: r.uniform(0.1, 10.0))
-    elif dataset == 'CIFAR10' or dataset == 'SVHN' or dataset == 'CIFAR100':
+    elif dataset == 'SVHN' or 'CIFAR10' in dataset or dataset =='TinyImagenet':
         _hparam('mart_beta', 5.0, lambda r: r.uniform(0.1, 10.0))
 
     ##### Gaussian DALE #####
@@ -71,7 +73,7 @@ def _hparams(algorithm: str, dataset: str, random_seed: int):
         _hparam('g_dale_n_steps', 7, lambda r: 7)
         _hparam('g_dale_step_size', 0.1, lambda r: 0.1)
         _hparam('g_dale_noise_coeff', 0.001, lambda r: 10 ** r.uniform(-6.0, -2.0))
-    elif dataset == 'CIFAR10' or dataset == 'SVHN' or dataset == 'CIFAR100':
+    elif dataset == 'SVHN' or 'CIFAR10' in dataset or dataset =='TinyImagenet':
         _hparam('g_dale_n_steps', 10, lambda r: 10)
         _hparam('g_dale_step_size', 0.007, lambda r: 0.007)
         _hparam('g_dale_noise_coeff', 0, lambda r: 0)
@@ -82,7 +84,7 @@ def _hparams(algorithm: str, dataset: str, random_seed: int):
         _hparam('l_dale_n_steps', 7, lambda r: 7)
         _hparam('l_dale_step_size', 0.1, lambda r: 0.1)
         _hparam('l_dale_noise_coeff', 0.001, lambda r: 10 ** r.uniform(-6.0, -2.0))
-    elif dataset == 'CIFAR10' or dataset == 'SVHN' or dataset == 'CIFAR100':
+    elif dataset == 'SVHN' or 'CIFAR10' in dataset or dataset =='TinyImagenet':
         _hparam('l_dale_n_steps', 10, lambda r: 10)
         _hparam('l_dale_step_size', 0.007, lambda r: 0.007)
         _hparam('l_dale_noise_coeff', 1e-2, lambda r: 1e-2)
@@ -94,7 +96,7 @@ def _hparams(algorithm: str, dataset: str, random_seed: int):
 
     # CVaR SGD
     _hparam('cvar_sgd_t_step_size', 1.0, lambda r: 0.001)
-    _hparam('cvar_sgd_beta', 0.05, lambda r: 0.1)
+    _hparam('cvar_sgd_beta', 0.5, lambda r: 0.1)
     _hparam('cvar_sgd_M', 20, lambda r: 10)
     _hparam('cvar_sgd_n_steps', 5, lambda r: 10)
 
@@ -107,7 +109,7 @@ def _hparams(algorithm: str, dataset: str, random_seed: int):
     _hparam('term_t', 2.0, lambda r: 1.0)
 
     # Randomized smoothing
-    if dataset == 'CIFAR10' or dataset == 'SVHN' or dataset == 'CIFAR100':
+    if dataset == 'SVHN' or 'CIFAR10' in dataset or dataset =='TinyImagenet':
         _hparam('rand_smoothing_sigma', 0.12, lambda r: 0.12)
         _hparam('rand_smoothing_n_steps', 10, lambda r: 7)
         _hparam('rand_smoothing_step_size', 2/255., lambda r: r.uniform(0.01, 0.1))
@@ -135,14 +137,14 @@ def test_hparams(algorithm: str, dataset: str):
 
     if 'MNIST' in dataset:
         _hparam('epsilon', 0.4)
-    elif dataset == 'CIFAR10' or dataset == 'SVHN' or dataset == 'CIFAR100':
+    elif dataset == 'SVHN' or 'CIFAR10' in dataset or dataset =='TinyImagenet':
         _hparam('epsilon', 8/255.)
 
     ##### PGD #####
     if 'MNIST' in dataset:
         _hparam('pgd_n_steps', 10)
         _hparam('pgd_step_size', 0.1)
-    elif dataset == 'CIFAR10' or dataset == 'SVHN' or dataset == 'CIFAR100':
+    elif dataset == 'SVHN' or 'CIFAR10' in dataset or dataset =='TinyImagenet':
         _hparam('pgd_n_steps', 20)
         _hparam('pgd_step_size', 0.003)
 
@@ -150,13 +152,13 @@ def test_hparams(algorithm: str, dataset: str):
     if 'MNIST' in dataset:
         _hparam('trades_n_steps', 10)
         _hparam('trades_step_size', 0.1)
-    elif dataset == 'CIFAR10' or dataset == 'SVHN' or dataset == 'CIFAR100':
+    elif dataset == 'SVHN' or 'CIFAR10' in dataset or dataset =='TinyImagenet':
         _hparam('trades_n_steps', 20)
         _hparam('trades_step_size', 2/255.)
 
     ##### CVaR SGD #####
     _hparam('cvar_sgd_t_step_size', 0.5)
-    _hparam('cvar_sgd_beta', 0.05)
+    _hparam('cvar_sgd_beta', 0.5)
     _hparam('cvar_sgd_M', 10)
     _hparam('cvar_sgd_n_steps', 10)
 
