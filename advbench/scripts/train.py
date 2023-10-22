@@ -49,7 +49,8 @@ def main(args, hparams, test_hparams):
         dataset.INPUT_SHAPE, 
         dataset.NUM_CLASSES,
         hparams,
-        device).to(device)
+        device, 
+        args.perturbation).to(device)
 
     def save_checkpoint(epoch):
         torch.save(
@@ -61,6 +62,7 @@ def main(args, hparams, test_hparams):
         vars(evalulation_methods)[e](
             algorithm=algorithm,
             device=device,
+            perturbation=args.perturbation, 
             # output_dir=args.output_dir,
             test_hparams=test_hparams)
         for e in args.evaluators]
@@ -192,6 +194,7 @@ if __name__ == '__main__':
     parser.add_argument('--trial_seed', type=int, default=0, help='Trial number')
     parser.add_argument('--seed', type=int, default=0, help='Seed for everything else')
     parser.add_argument('--evaluators', type=str, nargs='+', default=['Clean'])
+    parser.add_argument('--perturbation', type=str, default='Linf')
     parser.add_argument('--save_model_every_epoch', action='store_true')
     args = parser.parse_args()
 

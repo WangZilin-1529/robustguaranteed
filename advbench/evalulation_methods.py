@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from torchvision.transforms import RandomRotation as Rotate
 
 from advbench import attacks
 from advbench import util
@@ -9,17 +10,22 @@ class Evaluator:
     # Sub-class should over-ride
     NAME = ''   
 
-    def __init__(self, algorithm, device, test_hparams):
+    def __init__(self, algorithm, device, perturbation, test_hparams):
         self.algorithm = algorithm
         self.device = device
         self.test_hparams = test_hparams
+        self.perturbation = perturbation
 
     def calculate(self, loader):
         raise NotImplementedError
 
     def sample_perturbations(self, imgs):
-        eps = self.test_hparams['epsilon']
-        return 2 * eps * torch.rand_like(imgs) - eps
+        if self.perturbation == 'Linf':
+            eps = self.hparams['epsilon']
+            return 2 * eps * torch.rand_like(imgs) - eps
+        else:
+            rotate = Rotate(30)
+            return rotate(imgs)
 
     @staticmethod
     def clamp_imgs(imgs):
@@ -30,8 +36,8 @@ class Clean(Evaluator):
 
     NAME = 'Clean'
 
-    def __init__(self, algorithm, device, test_hparams):
-        super(Clean, self).__init__(algorithm, device, test_hparams)
+    def __init__(self, algorithm, device, perturbation, test_hparams):
+        super(Clean, self).__init__(algorithm, device, perturbation, test_hparams)
     
 
     @torch.no_grad()
@@ -57,8 +63,8 @@ class Clean(Evaluator):
 class Adversarial(Evaluator):
     """Calculates the adversarial accuracy of a classifier."""
 
-    def __init__(self, algorithm, device, attack, test_hparams):
-        super(Adversarial, self).__init__(algorithm, device, test_hparams)
+    def __init__(self, algorithm, device, attack, perturbation, test_hparams):
+        super(Adversarial, self).__init__(algorithm, device, perturbation, test_hparams)
         self.attack = attack
 
     def calculate(self, loader, epoch):
@@ -88,7 +94,7 @@ class PGD(Adversarial):
 
     NAME = 'PGD'
 
-    def __init__(self, algorithm, device, test_hparams):
+    def __init__(self, algorithm, device, perturbation, test_hparams):
 
         attack = attacks.PGD_Linf(
             classifier=algorithm.classifier,
@@ -98,6 +104,7 @@ class PGD(Adversarial):
             algorithm=algorithm, 
             device=device, 
             attack=attack, 
+            perturbation=perturbation,
             test_hparams=test_hparams)
 
 class FGSM(Adversarial):
@@ -105,7 +112,7 @@ class FGSM(Adversarial):
 
     NAME = 'FGSM'
 
-    def __init__(self, algorithm, device, test_hparams):
+    def __init__(self, algorithm, device, perturbation, test_hparams):
 
         attack = attacks.FGSM_Linf(
             classifier=algorithm.classifier,
@@ -115,6 +122,7 @@ class FGSM(Adversarial):
             algorithm=algorithm, 
             device=device, 
             attack=attack, 
+            perturbation=perturbation,
             test_hparams=test_hparams)
 
 class CVaR(Evaluator):
@@ -122,8 +130,8 @@ class CVaR(Evaluator):
 
     NAME = 'CVaR'
 
-    def __init__(self, algorithm, device, test_hparams):
-        super(CVaR, self).__init__(algorithm, device, test_hparams)
+    def __init__(self, algorithm, device, perturbation, test_hparams):
+        super(CVaR, self).__init__(algorithm, device, perturbation, test_hparams)
         self.q = self.test_hparams['cvar_sgd_beta']
         self.n_cvar_steps = self.test_hparams['cvar_sgd_n_steps']
         self.M = self.test_hparams['cvar_sgd_M']
@@ -176,8 +184,8 @@ class Augmented(Evaluator):
 
     NAME = 'Augmented'
 
-    def __init__(self, algorithm, device, test_hparams):
-        super(Augmented, self).__init__(algorithm, device, test_hparams)
+    def __init__(self, algorithm, device, perturbation, test_hparams):
+        super(Augmented, self).__init__(algorithm, device, perturbation, test_hparams)
         self.n_aug_samples = self.test_hparams['aug_n_samples']
 
     @staticmethod
@@ -197,12 +205,16 @@ class Augmented(Evaluator):
         self.algorithm.eval()
 
         correct, total, loss_sum = 0, 0, 0
-        correct_per_datum = []
+        correct_per_datum, true_correct_per_datum = [], []
 
         for imgs, labels in loader:
             imgs, labels = imgs.to(self.device), labels.to(self.device)
             
-            batch_correct_ls = []
+            batch_correct_ls, batch_true_correct_ls = [], []
+
+            true_logits = self.algorithm.predict(imgs)
+            true_preds = true_logits.argmax(dim=1, keepdim=True)
+            true_preds_bool = true_preds.eq(labels.view_as(true_preds))
             for _ in range(self.n_aug_samples):
                 perturbations = self.sample_perturbations(imgs)
                 perturbed_imgs = self.clamp_imgs(imgs + perturbations)
@@ -213,18 +225,29 @@ class Augmented(Evaluator):
                 # unreduced predictions
                 pert_preds = preds.eq(labels.view_as(preds))
 
+                # correct and unredecued predictions
+                true_pert_preds = pert_preds.eq(true_preds_bool)
+
                 # list of predictions for each data point
                 batch_correct_ls.append(pert_preds)
+                batch_true_correct_ls.append(true_pert_preds)
 
                 correct += pert_preds.sum().item()
                 total += imgs.size(0)
+            
+            
+
 
             # number of correct predictions for each data point
             batch_correct = torch.sum(torch.hstack(batch_correct_ls), dim=1)
             correct_per_datum.append(batch_correct)
+            batch_true_correct = torch.sum(torch.hstack(batch_true_correct_ls), dim=1)
+            true_correct_per_datum.append(batch_true_correct)
+            
 
         # accuracy for each data point
         accuracy_per_datum = 100. * torch.hstack(correct_per_datum) / self.n_aug_samples
+        true_accuracy_per_datum = 100. * torch.hstack(true_correct_per_datum) / self.n_aug_samples
 
         self.algorithm.train()
 
@@ -236,6 +259,10 @@ class Augmented(Evaluator):
         if self.test_hparams['test_betas']:
             return_dict.update({
                 f'{self.NAME}-{q}-Quantile-Accuracy': self.quantile_accuracy(q, accuracy_per_datum)
+                for q in self.test_hparams['test_betas']
+            })
+            return_dict.update({
+                f'True-{self.NAME}-{q}-Quantile-Accuracy': self.quantile_accuracy(q, true_accuracy_per_datum)
                 for q in self.test_hparams['test_betas']
             })
 

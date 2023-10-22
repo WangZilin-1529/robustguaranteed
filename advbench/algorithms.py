@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision.transforms import RandomRotation as Rotate
 from collections import OrderedDict
 import pandas as pd
 import numpy as np
@@ -35,7 +36,7 @@ ALGORITHMS = [
 ]
 
 class Algorithm(nn.Module):
-    def __init__(self, input_shape, num_classes, hparams, device):
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
         super(Algorithm, self).__init__()
         self.hparams = hparams
         self.classifier = networks.Classifier(
@@ -46,6 +47,7 @@ class Algorithm(nn.Module):
             momentum=hparams['sgd_momentum'],
             weight_decay=hparams['weight_decay'])
         self.device = device
+        self.perturbation = perturbation
         
         self.meters = OrderedDict()
         self.meters['Loss'] = meters.AverageMeter()
@@ -75,8 +77,8 @@ class Algorithm(nn.Module):
         return self.meters_df
 
 class ERM(Algorithm):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(ERM, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(ERM, self).__init__(input_shape, num_classes, hparams, device, perturbation)
 
     def step(self, imgs, labels):
         self.optimizer.zero_grad()
@@ -87,13 +89,17 @@ class ERM(Algorithm):
         self.meters['Loss'].update(loss.item(), n=imgs.size(0))
 
 class ERM_DataAug(Algorithm):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(ERM_DataAug, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(ERM_DataAug, self).__init__(input_shape, num_classes, hparams, device, perturbation)
 
     def sample_deltas(self, imgs):
-        eps = self.hparams['epsilon']
-        return 2 * eps * torch.rand_like(imgs) - eps
-
+        if self.perturbation == 'Linf':
+            eps = self.hparams['epsilon']
+            return 2 * eps * torch.rand_like(imgs) - eps
+        else:
+            rotate = Rotate(30)
+            return rotate(imgs)
+        
     def step(self, imgs, labels):
         self.optimizer.zero_grad()
         loss = 0
@@ -107,8 +113,8 @@ class ERM_DataAug(Algorithm):
         self.meters['Loss'].update(loss.item(), n=imgs.size(0))
 
 class TERM(Algorithm):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(TERM, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(TERM, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.meters['tilted loss'] = meters.AverageMeter()
         self.t = torch.tensor(self.hparams['term_t'])
 
@@ -123,13 +129,17 @@ class TERM(Algorithm):
         self.meters['tilted loss'].update(term_loss.item(), n=imgs.size(0))
 
 class PGD(Algorithm):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(PGD, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(PGD, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.attack = attacks.PGD_Linf(self.classifier, self.hparams, device)
 
     def sample_deltas(self, imgs):
-        eps = self.hparams['epsilon']
-        return 2 * eps * torch.rand_like(imgs) - eps
+        if self.perturbation == 'Linf':
+            eps = self.hparams['epsilon']
+            return 2 * eps * torch.rand_like(imgs) - eps
+        else:
+            rotate = Rotate(30)
+            return rotate(imgs)
 
 
     def step(self, imgs, labels):
@@ -143,8 +153,8 @@ class PGD(Algorithm):
         self.meters['Loss'].update(loss.item(), n=imgs.size(0))
 
 class RandSmoothing(Algorithm):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(RandSmoothing, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(RandSmoothing, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.attack = attacks.SmoothAdv(self.classifier, self.hparams, device)
 
     def step(self, imgs, labels):
@@ -173,8 +183,8 @@ class FGSM(Algorithm):
         self.meters['Loss'].update(loss.item(), n=imgs.size(0))
 
 class TRADES(Algorithm):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(TRADES, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(TRADES, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.kl_loss_fn = nn.KLDivLoss(reduction='batchmean')  # TODO(AR): let's write a method to do the log-softmax part
         self.attack = attacks.TRADES_Linf(self.classifier, self.hparams, device)
         
@@ -200,8 +210,8 @@ class TRADES(Algorithm):
         return {'loss': total_loss.item()}
 
 class LogitPairingBase(Algorithm):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(LogitPairingBase, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(LogitPairingBase, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.attack = attacks.PGD_Linf(self.classifier, self.hparams, device)
         self.meters['logit loss'] = meters.AverageMeter()
 
@@ -210,8 +220,8 @@ class LogitPairingBase(Algorithm):
         return torch.norm(logit_diff, dim=1).mean()
 
 class ALP(LogitPairingBase):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(ALP, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(ALP, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.attack = attacks.PGD_Linf(self.classifier, self.hparams, device)
         self.meters['robust loss'] = meters.AverageMeter()
 
@@ -229,8 +239,8 @@ class ALP(LogitPairingBase):
         self.meters['logit loss'].update(logit_pairing_loss.item(), n=imgs.size(0))
 
 class CLP(LogitPairingBase):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(CLP, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(CLP, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.attack = attacks.PGD_Linf(self.classifier, self.hparams, device)
 
         self.meters['clean loss'] = meters.AverageMeter()
@@ -249,8 +259,8 @@ class CLP(LogitPairingBase):
         self.meters['logit loss'].update(logit_pairing_loss.item(), n=imgs.size(0))
 
 class MART(Algorithm):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(MART, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(MART, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.kl_loss_fn = nn.KLDivLoss(reduction='none')
         self.attack = attacks.PGD_Linf(self.classifier, self.hparams, device)
 
@@ -258,8 +268,12 @@ class MART(Algorithm):
         self.meters['invariance loss'] = meters.AverageMeter()
 
     def sample_deltas(self, imgs):
-        eps = self.hparams['epsilon']
-        return 2 * eps * torch.rand_like(imgs) - eps
+        if self.perturbation == 'Linf':
+            eps = self.hparams['epsilon']
+            return 2 * eps * torch.rand_like(imgs) - eps
+        else:
+            rotate = Rotate(30)
+            return rotate(imgs)
 
 
     def step(self, imgs, labels):
@@ -289,8 +303,8 @@ class MMA(Algorithm):
     pass
 
 class Gaussian_DALE(Algorithm):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(Gaussian_DALE, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(Gaussian_DALE, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.attack = attacks.LMC_Gaussian_Linf(self.classifier, self.hparams, device)
         self.meters['clean loss'] = meters.AverageMeter()
         self.meters['robust loss'] = meters.AverageMeter()
@@ -309,8 +323,8 @@ class Gaussian_DALE(Algorithm):
         self.meters['robust loss'].update(robust_loss.item(), n=imgs.size(0))
 
 class Laplacian_DALE(Algorithm):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(Laplacian_DALE, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(Laplacian_DALE, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.attack = attacks.LMC_Laplacian_Linf(self.classifier, self.hparams, device)
         self.meters['clean loss'] = meters.AverageMeter()
         self.meters['robust loss'] = meters.AverageMeter()
@@ -329,16 +343,16 @@ class Laplacian_DALE(Algorithm):
         self.meters['robust loss'].update(robust_loss.item(), n=imgs.size(0))
 
 class PrimalDualBase(Algorithm):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(PrimalDualBase, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(PrimalDualBase, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.dual_params = {'dual_var': torch.tensor(1.0).to(self.device)}
         self.meters['clean loss'] = meters.AverageMeter()
         self.meters['robust loss'] = meters.AverageMeter()
         self.meters['dual variable'] = meters.AverageMeter()
 
 class Gaussian_DALE_PD(PrimalDualBase):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(Gaussian_DALE_PD, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(Gaussian_DALE_PD, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.attack = attacks.LMC_Gaussian_Linf(self.classifier, self.hparams, device)
         self.pd_optimizer = optimizers.PrimalDualOptimizer(
             parameters=self.dual_params,
@@ -362,14 +376,18 @@ class Gaussian_DALE_PD(PrimalDualBase):
         self.meters['dual variable'].update(self.dual_params['dual_var'].item(), n=1)
 
 class CVaR_SGD_Autograd(Algorithm):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(CVaR_SGD_Autograd, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(CVaR_SGD_Autograd, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.meters['avg t'] = meters.AverageMeter()
         self.meters['plain loss'] = meters.AverageMeter()
 
     def sample_deltas(self, imgs):
-        eps = self.hparams['epsilon']
-        return 2 * eps * torch.rand_like(imgs) - eps
+        if self.perturbation == 'Linf':
+            eps = self.hparams['epsilon']
+            return 2 * eps * torch.rand_like(imgs) - eps
+        else:
+            rotate = Rotate(30)
+            return rotate(imgs)
 
     def step(self, imgs, labels):
 
@@ -408,16 +426,20 @@ class CVaR_SGD_Autograd(Algorithm):
         self.meters['plain loss'].update(plain_loss.item() / M, n=imgs.size(0))
 
 class CVaR_SGD(Algorithm):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(CVaR_SGD, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(CVaR_SGD, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.meters['avg t'] = meters.AverageMeter()
         self.meters['plain loss'] = meters.AverageMeter()
         # self.meters['robustness probability'] = meters.AverageMeter()
         # self.meters['true robustness ratio'] = meters.AverageMeter()
 
     def sample_deltas(self, imgs):
-        eps = self.hparams['epsilon']
-        return 2 * eps * torch.rand_like(imgs) - eps
+        if self.perturbation == 'Linf':
+            eps = self.hparams['epsilon']
+            return 2 * eps * torch.rand_like(imgs) - eps
+        else:
+            rotate = Rotate(30)
+            return rotate(imgs)
     
     def check_robustness(self, proportion, labels, pert_labels):
         robustness = []
@@ -493,8 +515,8 @@ class CVaR_SGD(Algorithm):
         # self.meters['true robustness ratio'].update(true_robust_ratio, n=robustness.size(0))
 
 class CVaR_SGD_PD(Algorithm):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(CVaR_SGD_PD, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(CVaR_SGD_PD, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.dual_params = {'dual_var': torch.tensor(1.0).to(self.device)}
         self.meters['avg t'] = meters.AverageMeter()
         self.meters['plain loss'] = meters.AverageMeter()
@@ -529,17 +551,18 @@ class CVaR_SGD_PD(Algorithm):
         return count/labels.size(0)
 
     def sample_deltas(self, imgs):
-        eps = self.hparams['epsilon']
-        return 2 * eps * torch.rand_like(imgs) - eps
+        if self.perturbation == 'Linf':
+            eps = self.hparams['epsilon']
+            return 2 * eps * torch.rand_like(imgs) - eps
+        else:
+            rotate = Rotate(30)
+            return rotate(imgs)
 
     def step(self, imgs, labels):
 
         beta = self.hparams['cvar_sgd_beta']
         M = self.hparams['cvar_sgd_M']
         ts = torch.ones(size=(imgs.size(0),)).to(self.device)
-        # proportion, MoE, confi_level = self.hparams['proportion'], self.hparams['MoE'], self.hparams['confi_level']
-        # N = util.calculate_sample_size(proportion, MoE, confi_level)
-        # pert_labels = []
 
         self.optimizer.zero_grad()
         for _ in range(self.hparams['cvar_sgd_n_steps']):
@@ -559,15 +582,7 @@ class CVaR_SGD_PD(Algorithm):
             # gradient update on ts
             grad_ts = (1 - (1 / beta) * indicator_avg) / float(imgs.size(0))
             ts = ts - self.hparams['cvar_sgd_t_step_size'] * grad_ts
-        
-        # for _ in range(N):
-        #     pert_imgs = self.img_clamp(imgs + self.sample_deltas(imgs))
-        #     pert_value = self.predict(pert_imgs)
-        #     top2_labels = torch.topk(pert_value, 2, dim=1)[1]
-        #     top_labels = top2_labels[:,0:1]
-        #     pert_labels.append(top_labels)
-        # pert_labels_tensor = torch.cat(pert_labels, dim=1)
-        # robustness = self.check_robustness(proportion, labels, pert_labels_tensor)
+
 
         loss = cvar_loss + self.dual_params['dual_var'] * (plain_loss / float(M))
         loss.backward()
@@ -586,8 +601,8 @@ class CVaR_SGD_PD(Algorithm):
         # self.meters['true robustness ratio'].update(true_robust_ratio, n=robustness.size(0))
 
 class Gaussian_DALE_PD_Reverse(PrimalDualBase):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(Gaussian_DALE_PD_Reverse, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(Gaussian_DALE_PD_Reverse, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.attack = attacks.LMC_Gaussian_Linf(self.classifier, self.hparams, device)
         self.pd_optimizer = optimizers.PrimalDualOptimizer(
             parameters=self.dual_params,
@@ -610,8 +625,8 @@ class Gaussian_DALE_PD_Reverse(PrimalDualBase):
         self.meters['dual variable'].update(self.dual_params['dual_var'].item(), n=1)
 
 class KL_DALE_PD(PrimalDualBase):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(KL_DALE_PD, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(KL_DALE_PD, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.attack = attacks.TRADES_Linf(self.classifier, self.hparams, device)
         self.kl_loss_fn = nn.KLDivLoss(reduction='batchmean')
         self.pd_optimizer = optimizers.PrimalDualOptimizer(
@@ -620,8 +635,12 @@ class KL_DALE_PD(PrimalDualBase):
             eta=self.hparams['g_dale_pd_step_size'])
         
     def sample_deltas(self, imgs):
-        eps = self.hparams['epsilon']
-        return 2 * eps * torch.rand_like(imgs) - eps
+        if self.perturbation == 'Linf':
+            eps = self.hparams['epsilon']
+            return 2 * eps * torch.rand_like(imgs) - eps
+        else:
+            rotate = Rotate(30)
+            return rotate(imgs)
 
     def step(self, imgs, labels):
         adv_imgs = self.attack(imgs, labels)
@@ -641,8 +660,8 @@ class KL_DALE_PD(PrimalDualBase):
         self.meters['dual variable'].update(self.dual_params['dual_var'].item(), n=1)
 
 class RobustGuaranteed(Algorithm):
-    def __init__(self, input_shape, num_classes, hparams, device):
-        super(RobustGuaranteed, self).__init__(input_shape, num_classes, hparams, device)
+    def __init__(self, input_shape, num_classes, hparams, device, perturbation):
+        super(RobustGuaranteed, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         # self.dual_params = {'dual_var': torch.tensor(1.0).to(self.device)}
         self.meters['avg largest loss'] = meters.AverageMeter()
         # self.meters['robustness probability'] = meters.AverageMeter()
@@ -653,8 +672,12 @@ class RobustGuaranteed(Algorithm):
         #     eta=self.hparams['g_dale_pd_step_size'])
 
     def sample_deltas(self, imgs):
-        eps = self.hparams['epsilon']
-        return 2 * eps * torch.rand_like(imgs) - eps
+        if self.perturbation == 'Linf':
+            eps = self.hparams['epsilon']
+            return 2 * eps * torch.rand_like(imgs) - eps
+        else:
+            rotate = Rotate(30)
+            return rotate(imgs)
     
     def check_robustness(self, proportion, labels, pert_labels):
         robustness = []
