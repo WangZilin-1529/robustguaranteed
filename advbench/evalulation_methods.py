@@ -21,7 +21,7 @@ class Evaluator:
 
     def sample_perturbations(self, imgs):
         if self.perturbation == 'Linf':
-            eps = self.hparams['epsilon']
+            eps = self.test_hparams['epsilon']
             return 2 * eps * torch.rand_like(imgs) - eps
         else:
             rotate = Rotate(30)
