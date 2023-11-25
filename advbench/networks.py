@@ -4,17 +4,18 @@ import torch.nn.functional as F
 import torchvision.models as models
 from collections import OrderedDict
 from torchvision.models.efficientnet import EfficientNet
+from torchvision.models.resnet import conv1x1, conv3x3, _resnet, resnet152
 
 
 def Classifier(input_shape, num_classes, hparams):
     if input_shape[0] == 1:
         # return SmallCNN()
         return MNISTNet(input_shape, num_classes)
-    elif input_shape[0] == 3 and (input_shape[1]==32 or input_shape[1]==64):
+    elif input_shape[0] == 3 and input_shape[1]==32:
         # return models.resnet18(num_classes=num_classes)
         return ResNet18(num_classes=num_classes)
-    elif input_shape[0] == 3 and input_shape[1]==224:
-        return EffNetV2(num_classes=num_classes)
+    elif input_shape[0] == 3 and input_shape[1]==64:
+        return ResNet18(num_classes=num_classes)
     else:
         assert False
 
@@ -100,30 +101,69 @@ class Bottleneck(nn.Module):
         out = F.relu(out)
         return out
 
+class PreactBasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
+                 base_width=64, dilation=1, num_classes=200, norm_layer=None):
+        super(PreactBasicBlock, self).__init__()
+
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+
+        if groups != 1 or base_width != 64:
+            raise ValueError('BasicBlock only supports groups=1 and base_width=64')
+
+        if dilation > 1:
+            raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
+
+        # Both self.conv1 and self.downsample layers downsample the input when stride != 1
+
+        self.bn1 = nn.BatchNorm2d(inplanes)
+        self.relu1 = nn.ReLU(inplace=True)
+        self.conv1 = conv3x3(inplanes, planes, stride)
+
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.relu2 = nn.ReLU(inplace=True)
+        self.conv2 = conv3x3(planes, planes)
+        
+        self.downsample = conv1x1(inplanes, planes, stride)
+        self.stride = stride
+        # self.fc = nn.Linear(512*self.expansion, num_classes)
+
+    def forward(self, x):
+        identity = x
+
+        out = self.bn1(x)
+        out = self.relu1(out)
+        out = self.conv1(out)
+
+        out = self.bn2(out)
+        out = self.relu2(out)
+        out = self.conv2(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out += identity
+
+        return out
 
 class ResNet(nn.Module):
     def __init__(self, block, num_blocks, num_classes=200):
         super(ResNet, self).__init__()
         
+        self.in_planes = 64
+
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
+        self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
         if num_classes==200:
-            self.in_planes = 32
-
-            self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1, bias=False)
-            self.bn1 = nn.BatchNorm2d(32)
-            self.layer1 = self._make_layer(block, 32, num_blocks[0], stride=1)
-            self.layer2 = self._make_layer(block, 64, num_blocks[1], stride=2)
-            self.layer3 = self._make_layer(block, 128, num_blocks[2], stride=2)
-            self.layer4 = self._make_layer(block, 256, num_blocks[3], stride=2)
-            self.linear = nn.Linear(1024 * block.expansion, num_classes)
+            self.linear = nn.Linear(2048 * block.expansion, num_classes)
         else:
-            self.in_planes = 64
-
-            self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
-            self.bn1 = nn.BatchNorm2d(64)
-            self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
-            self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
-            self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
-            self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
             self.linear = nn.Linear(512 * block.expansion, num_classes)
 
     def _make_layer(self, block, planes, num_blocks, stride):
@@ -146,11 +186,18 @@ class ResNet(nn.Module):
         return out
 
 
+
 def ResNet18(num_classes=10):
     return ResNet(BasicBlock, [2, 2, 2, 2], num_classes=num_classes)
 
 def ResNet50(num_classes=100):
     return ResNet(Bottleneck, [3, 4, 6, 3], num_classes=num_classes)
+
+def PreActResNet18(num_classes=200):
+    return ResNet(PreactBasicBlock, [2, 2, 2, 2], num_classes=num_classes)
+
+def ResNet152(num_classes=200):
+    return _resnet(PreactBasicBlock, [2,2,2,2], progress=False)
 
 class EffNetV2(nn.Module):
     def __init__(self, num_classes=10):
