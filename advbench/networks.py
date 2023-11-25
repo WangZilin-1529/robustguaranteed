@@ -15,7 +15,7 @@ def Classifier(input_shape, num_classes, hparams):
         # return models.resnet18(num_classes=num_classes)
         return ResNet18(num_classes=num_classes)
     elif input_shape[0] == 3 and input_shape[1]==64:
-        return ResNet18(num_classes=num_classes)
+        return ResNet50(num_classes=num_classes)
     else:
         assert False
 
