@@ -4,7 +4,8 @@ import torch.nn.functional as F
 import torchvision.models as models
 from collections import OrderedDict
 from torchvision.models.efficientnet import EfficientNet
-from torchvision.models.resnet import conv1x1, conv3x3, _resnet, resnet152
+from torchvision.models.resnet import conv1x1, conv3x3, _resnet
+from einops import rearrange
 
 
 def Classifier(input_shape, num_classes, hparams):
@@ -15,7 +16,8 @@ def Classifier(input_shape, num_classes, hparams):
         # return models.resnet18(num_classes=num_classes)
         return ResNet18(num_classes=num_classes)
     elif input_shape[0] == 3 and input_shape[1]==64:
-        return ResNet50(num_classes=num_classes)
+        # return UPANets(16, 200, 1, 64)
+        return ResNet18(num_classes=num_classes)
     else:
         assert False
 
@@ -454,3 +456,4 @@ class EffNetV2(nn.Module):
     def forward(self, x):
         out = self.model(x)
         return out
+    

@@ -6,6 +6,7 @@ from collections import OrderedDict
 import pandas as pd
 import numpy as np
 import torch.optim as optim
+from torch.optim.lr_scheduler import OneCycleLR, ReduceLROnPlateau
 import math
 
 from advbench import util
@@ -48,6 +49,7 @@ class Algorithm(nn.Module):
             weight_decay=hparams['weight_decay'])
         self.device = device
         self.perturbation = perturbation
+        self.scheduler = None
         
         self.meters = OrderedDict()
         self.meters['Loss'] = meters.AverageMeter()
@@ -662,14 +664,7 @@ class KL_DALE_PD(PrimalDualBase):
 class RobustGuaranteed(Algorithm):
     def __init__(self, input_shape, num_classes, hparams, device, perturbation):
         super(RobustGuaranteed, self).__init__(input_shape, num_classes, hparams, device, perturbation)
-        # self.dual_params = {'dual_var': torch.tensor(1.0).to(self.device)}
         self.meters['avg largest loss'] = meters.AverageMeter()
-        # self.meters['robustness probability'] = meters.AverageMeter()
-        # self.meters['true robustness ratio'] = meters.AverageMeter()
-        # self.pd_optimizer = optimizers.PrimalDualOptimizer(
-        #     parameters=self.dual_params,
-        #     margin=self.hparams['g_dale_pd_margin'],
-        #     eta=self.hparams['g_dale_pd_step_size'])
 
     def sample_deltas(self, imgs):
         if self.perturbation == 'Linf':
@@ -701,46 +696,17 @@ class RobustGuaranteed(Algorithm):
                 count += 1
         return count/labels.size(0)
 
+    def vanilla_step(self, imgs, labels):
+        B = imgs.size(0)
 
-
-    def first_step(self, imgs, labels):
         self.optimizer.zero_grad()
 
         robust_loss = F.cross_entropy(self.predict(imgs), labels)
 
         robust_loss.backward()
         self.optimizer.step()
-        self.meters['Loss'].update(robust_loss.sum().item(), n=imgs.size(0))
 
-    def vanilla_step(self, imgs, labels):
-        B = imgs.size(0)
-
-        self.optimizer.zero_grad()
-
-        # proportion, MoE, confi_level = self.hparams['proportion'], self.hparams['MoE'], self.hparams['confi_level']
-        # N = util.calculate_sample_size(proportion, MoE, confi_level)
-        # for _ in range(N):
-        #     pert_imgs = self.img_clamp(imgs + self.sample_deltas(imgs))
-        #     pert_value = self.predict(pert_imgs)
-        #     top2_labels = torch.topk(pert_value, 2, dim=1)[1]
-        #     top_labels = top2_labels[:,0:1]
-        #     pert_labels.append(top_labels)
-        # pert_labels_tensor = torch.cat(pert_labels, dim=1)
-        # robustness = self.check_robustness(proportion, labels, pert_labels_tensor)
-        robust_loss = F.cross_entropy(self.predict(imgs), labels).mean()
-
-        robust_loss.backward()
-        self.optimizer.step()
-
-        # num_of_true = torch.count_nonzero(robustness).item()
-
-        # true_values = torch.argmax(self.predict(imgs), dim=1)
-        # true_robust_ratio = self.calculate_robustness_ratio(labels, true_values, robustness)
-
-        self.meters['Loss'].update(robust_loss.item(), n=imgs.size(0))
-        # self.meters['avg largest loss'].update(robust_loss.item()/len(selected_losses), n=imgs.size(0))
-        # self.meters['robustness probability'].update(num_of_true/robustness.size(0), n=robustness.size(0))
-        # self.meters['true robustness ratio'].update(true_robust_ratio, n=robustness.size(0))
+        self.meters['Loss'].update(robust_loss.mean().item(), n=imgs.size(0))
         
 
     def step(self, imgs, labels):
