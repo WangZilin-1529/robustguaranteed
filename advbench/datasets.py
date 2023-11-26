@@ -7,7 +7,7 @@ from torchvision.datasets import SVHN as SVHN_
 from torchvision.datasets import ImageNet as ImageNet_
 from torchvision.datasets import CIFAR100 as CIFAR100_
 from torchvision.datasets import ImageFolder
-import cv2
+# import cv2
 
 
 SPLITS = ['train', 'val', 'test']
@@ -153,8 +153,8 @@ class CIFAR100_EFF(AdvRobDataset):
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
-    def resize_img(self, imgs, shape):
-        return cv2.resize(imgs, (shape[1], shape[2]), interpolation=cv2.INTER_CUBIC)
+    # def resize_img(self, imgs, shape):
+    #     return cv2.resize(imgs, (shape[1], shape[2]), interpolation=cv2.INTER_CUBIC)
 
 class MNISTTensor(AdvRobDataset):
 

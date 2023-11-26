@@ -33,13 +33,13 @@ def allocate_test_tinyimagenet():
     data = pd.read_csv(root_file, header=None)
     print(data)
 
-root_file = './advbench/data/tiny-imagenet-200/val/val_annotations.txt'
-data = pd.read_csv(root_file, sep='\t', header=None)
-# for (path, dir, file) in os.walk(train_root):
-#     if len(file)==0:
-#             continue
-#     if 'images' not in path:
-#         label = path.split('\\')[-1]
-#         os.mkdir(os.path.join(target_test_root, label))
-for index, row in data.iterrows():
-    shutil.copy(os.path.join(test_root, row[0]), os.path.join(target_test_root, row[1], row[0]))
+# root_file = './advbench/data/tiny-imagenet-200/val/val_annotations.txt'
+# data = pd.read_csv(root_file, sep='\t', header=None)
+# # for (path, dir, file) in os.walk(train_root):
+# #     if len(file)==0:
+# #             continue
+# #     if 'images' not in path:
+# #         label = path.split('\\')[-1]
+# #         os.mkdir(os.path.join(target_test_root, label))
+# for index, row in data.iterrows():
+#     shutil.copy(os.path.join(test_root, row[0]), os.path.join(target_test_root, row[1], row[0]))
