@@ -7,6 +7,7 @@ from torchvision.datasets import SVHN as SVHN_
 from torchvision.datasets import ImageNet as ImageNet_
 from torchvision.datasets import CIFAR100 as CIFAR100_
 from torchvision.datasets import ImageFolder
+from torch.optim.lr_scheduler import OneCycleLR, ReduceLROnPlateau
 # import cv2
 
 
@@ -303,7 +304,8 @@ class TinyImagenet(AdvRobDataset):
         train_transforms = transforms.Compose([
             transforms.RandomCrop(64, padding=4),
             transforms.RandomHorizontalFlip(),
-            transforms.ToTensor()])
+            transforms.ToTensor()
+            ])
         test_transforms = transforms.Compose([
             transforms.ToTensor()])
 
@@ -315,6 +317,7 @@ class TinyImagenet(AdvRobDataset):
 
     @staticmethod
     def adjust_lr(optimizer, epoch, hparams):
+
         lr = hparams['learning_rate']
         if epoch >= 55:    # 150
             lr = hparams['learning_rate'] * 0.1

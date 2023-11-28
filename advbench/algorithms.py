@@ -49,7 +49,6 @@ class Algorithm(nn.Module):
             weight_decay=hparams['weight_decay'])
         self.device = device
         self.perturbation = perturbation
-        self.scheduler = None
         
         self.meters = OrderedDict()
         self.meters['Loss'] = meters.AverageMeter()
@@ -665,6 +664,9 @@ class RobustGuaranteed(Algorithm):
     def __init__(self, input_shape, num_classes, hparams, device, perturbation):
         super(RobustGuaranteed, self).__init__(input_shape, num_classes, hparams, device, perturbation)
         self.meters['avg largest loss'] = meters.AverageMeter()
+        self.scheduler = OneCycleLR(self.optimizer, max_lr=0.02, steps_per_epoch=100000,
+                       epochs=50, div_factor=10, final_div_factor=10,
+                       pct_start=0.2)
 
     def sample_deltas(self, imgs):
         if self.perturbation == 'Linf':
@@ -702,9 +704,14 @@ class RobustGuaranteed(Algorithm):
         self.optimizer.zero_grad()
 
         robust_loss = F.cross_entropy(self.predict(imgs), labels)
+        l2_loss = 0
+        for param in self.classifier.parameters():
+            l2_loss += torch.norm(param, 2)
+        robust_loss += 0.005*l2_loss
 
         robust_loss.backward()
         self.optimizer.step()
+        self.scheduler.step()
 
         self.meters['Loss'].update(robust_loss.mean().item(), n=imgs.size(0))
         
@@ -750,11 +757,16 @@ class RobustGuaranteed(Algorithm):
             selected_losses.append(pert_losses2_tensor[j][indices[j][ind].item()])
 
         selected_losses_tensor = torch.tensor(selected_losses).view(-1, 1).to(self.device)
-        robust_loss = (pert_losses1_tensor-selected_losses_tensor).mean(dim=1).mean()
+        l2_loss = 0
+        for param in self.classifier.parameters():
+            l2_loss += torch.norm(param, 2)
+        robust_loss += 0.005*l2_loss
+        robust_loss = (pert_losses1_tensor-selected_losses_tensor).mean(dim=1).mean() + l2_loss
         # robust_loss = selected_losses_tensor.mean() + self.dual_params['dual_var'] * pert_losses1_tensor.mean(dim=1).mean()
 
         robust_loss.backward()
         self.optimizer.step()
+        self.scheduler.step()
 
         # num_of_true = torch.count_nonzero(robustness).item()
 
