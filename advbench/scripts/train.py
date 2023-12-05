@@ -85,6 +85,7 @@ def main(args, hparams, test_hparams):
                 imgs, labels = imgs.to(device), labels.to(device)
                 algorithm.step(imgs, labels)
 
+
             if batch_idx % dataset.LOG_INTERVAL == 0:
                 print(f'Epoch {epoch+1}/{dataset.N_EPOCHS} ', end='')
                 print(f'[{batch_idx * imgs.size(0)}/{len(train_loader.dataset)}', end=' ')
@@ -111,6 +112,8 @@ def main(args, hparams, test_hparams):
         # print('\nValidation')
         # misc.print_row([key for key in results['Validation'].keys()]) 
         # misc.print_row([results['Validation'][key] for key in results['Validation'].keys()])
+
+        # Test Part !!!##
         for evaluator in evaluators:
             for k, v in evaluator.calculate(test_loader, epoch).items():
                 results['Test'].update({k: v})

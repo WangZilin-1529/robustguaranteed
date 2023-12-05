@@ -4,9 +4,9 @@ import torch.nn.functional as F
 from torchvision.transforms import RandomRotation as Rotate
 from collections import OrderedDict
 import pandas as pd
-import numpy as np
+# import numpy as np
 import torch.optim as optim
-from torch.optim.lr_scheduler import OneCycleLR, ReduceLROnPlateau
+from torch.optim.lr_scheduler import OneCycleLR
 import math
 
 from advbench import util
@@ -359,6 +359,14 @@ class Gaussian_DALE_PD(PrimalDualBase):
             parameters=self.dual_params,
             margin=self.hparams['g_dale_pd_margin'],
             eta=self.hparams['g_dale_pd_step_size'])
+        
+        def sample_deltas(self, imgs):
+            if self.perturbation == 'Linf':
+                eps = self.hparams['epsilon']
+                return 2 * eps * torch.rand_like(imgs) - eps
+            else:
+                rotate = Rotate(30)
+                return rotate(imgs)
     
 
     def step(self, imgs, labels):
@@ -727,7 +735,7 @@ class RobustGuaranteed(Algorithm):
         pert_losses1 = []
         pert_losses2 = []
         for _ in range(N):
-            pert_imgs = self.img_clamp(imgs + self.sample_deltas(imgs))
+            pert_imgs = self.img_clamp(imgs + self.sample_deltas(imgs)).to(self.device)
             pert_value = self.predict(pert_imgs)
             top2_labels = torch.topk(pert_value, 2, dim=1)[1]
             new_labels_list = []
@@ -739,7 +747,7 @@ class RobustGuaranteed(Algorithm):
             pert_loss2 = F.cross_entropy(pert_value, new_labels, reduction='none')
             for i in range(B):
                 if top2_labels[i][0] != labels[i]:
-                    pert_loss2[i] = -10000
+                    pert_loss2[i] = -100
             pert_losses1.append(pert_loss1.view(-1, 1))
             pert_losses2.append(pert_loss2.view(-1, 1))
             # pert_labels.append(top_labels)
@@ -757,13 +765,9 @@ class RobustGuaranteed(Algorithm):
             selected_losses.append(pert_losses2_tensor[j][indices[j][ind].item()])
 
         selected_losses_tensor = torch.tensor(selected_losses).view(-1, 1).to(self.device)
-        l2_loss = 0
-        for param in self.classifier.parameters():
-            l2_loss += torch.norm(param, 2)
-        robust_loss += 0.005*l2_loss
-        robust_loss = (pert_losses1_tensor-selected_losses_tensor).mean(dim=1).mean() + l2_loss
+        robust_loss = (pert_losses1_tensor-selected_losses_tensor).mean(dim=1).mean()
         # robust_loss = selected_losses_tensor.mean() + self.dual_params['dual_var'] * pert_losses1_tensor.mean(dim=1).mean()
-
+        # robust_loss = (pert_losses1_tensor-selected_losses_tensor).mean(dim=1).mean()
         robust_loss.backward()
         self.optimizer.step()
         self.scheduler.step()

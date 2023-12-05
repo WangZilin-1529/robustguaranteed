@@ -2,9 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
-from collections import OrderedDict
-from torchvision.models.efficientnet import EfficientNet
-from torchvision.models.resnet import conv1x1, conv3x3, _resnet
+from torchvision.models.resnet import conv1x1, conv3x3
 from einops import rearrange
 
 
@@ -17,7 +15,7 @@ def Classifier(input_shape, num_classes, hparams):
         return ResNet18(num_classes=num_classes)
     elif input_shape[0] == 3 and input_shape[1]==64:
         return UPANets(16, 200, 1, 64)
-        # return ResNet50(num_classes=num_classes)
+        # return ResNet18(num_classes=num_classes)
     else:
         assert False
 
@@ -432,7 +430,6 @@ class upanets(nn.Module):
         return out
 
 def UPANets(f, c = 100, block = 1, img = 32):
-    
     return upanets(upa_block, [int(4*block), int(4*block), int(4*block), int(4*block)], f, num_classes=c, img=img)
 
 def ResNet18(num_classes=10):
@@ -443,17 +440,3 @@ def ResNet50(num_classes=100):
 
 def PreActResNet18(num_classes=200):
     return ResNet(PreactBasicBlock, [2, 2, 2, 2], num_classes=num_classes)
-
-def ResNet152(num_classes=200):
-    return _resnet(PreactBasicBlock, [2,2,2,2], progress=False)
-
-class EffNetV2(nn.Module):
-    def __init__(self, num_classes=10):
-        super(EffNetV2, self).__init__()
-        self.model = models.get_model('efficientnet_b0')
-        self.model.classifier = nn.Sequential(nn.Dropout(p=0.5, inplace=True), nn.Linear(1280, num_classes))
-
-    def forward(self, x):
-        out = self.model(x)
-        return out
-    

@@ -1,7 +1,6 @@
 import numpy as np
 
 from advbench.lib import misc
-from advbench import datasets
 
 def default_hparams(algorithm, dataset):
     return {a: b for a, (b, c) in _hparams(algorithm, dataset, 0).items()}
@@ -30,7 +29,7 @@ def _hparams(algorithm: str, dataset: str, random_seed: int):
     elif dataset == 'SVHN' or 'CIFAR10' in dataset:
         _hparam('batch_size', 20, lambda r: int(2 ** r.uniform(3, 5)))
     elif dataset == 'TinyImagenet':
-        _hparam('batch_size', 20, lambda r: int(2 ** r.uniform(3, 5)))
+        _hparam('batch_size', 10, lambda r: int(2 ** r.uniform(3, 5)))
 
     # optimization
     _hparam('learning_rate', 0.01, lambda r: 10 ** r.uniform(-4.5, -2.5))

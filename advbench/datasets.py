@@ -4,10 +4,8 @@ import torchvision.transforms as transforms
 from torchvision.datasets import CIFAR10 as CIFAR10_
 from torchvision.datasets import MNIST as TorchvisionMNIST
 from torchvision.datasets import SVHN as SVHN_
-from torchvision.datasets import ImageNet as ImageNet_
 from torchvision.datasets import CIFAR100 as CIFAR100_
 from torchvision.datasets import ImageFolder
-from torch.optim.lr_scheduler import OneCycleLR, ReduceLROnPlateau
 # import cv2
 
 
